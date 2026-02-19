@@ -1,0 +1,176 @@
+﻿:root {
+  --bg: #f7f8fc;
+  --panel: #ffffff;
+  --text: #12151d;
+  --muted: #5d6678;
+  --line: #dde2ec;
+  --primary: #0f766e;
+  --primary-hover: #0b5f58;
+  --secondary: #d4e9e6;
+  --danger: #b42318;
+  --ok: #027a48;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at 10% 0%, #e7eef8, transparent 45%), var(--bg);
+}
+
+.app-shell {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.topbar p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+h2 {
+  margin-top: 0;
+  margin-bottom: 14px;
+  font-size: 20px;
+}
+
+label {
+  display: block;
+  margin: 12px 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+input,
+select,
+button {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.actions {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+button {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button.primary {
+  border: none;
+  background: var(--primary);
+  color: white;
+}
+
+button.primary:hover {
+  background: var(--primary-hover);
+}
+
+button.secondary {
+  background: var(--secondary);
+  border: 1px solid #b0d4ce;
+}
+
+.status {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f5f8ff;
+  border: 1px solid #dce6ff;
+  min-height: 42px;
+  font-size: 14px;
+}
+
+.status.error {
+  color: var(--danger);
+  background: #fff4f2;
+  border-color: #ffd6d1;
+}
+
+.status.success {
+  color: var(--ok);
+  background: #f0fff4;
+  border-color: #c2f2d5;
+}
+
+.history-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #fbfcff;
+}
+
+.history-item .meta {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pill.pending {
+  color: #8a6100;
+  background: #fff3cd;
+}
+
+.pill.confirmed {
+  color: #0f5132;
+  background: #d1e7dd;
+}
+
+.pill.failed {
+  color: #842029;
+  background: #f8d7da;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 14px;
+  }
+
+  .actions,
+  .grid-two {
+    grid-template-columns: 1fr;
+  }
+}

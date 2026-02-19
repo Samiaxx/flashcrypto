@@ -1,0 +1,33 @@
+{
+    "name":  "flash-usdt-desktop",
+    "version":  "1.0.0",
+    "description":  "Windows desktop app for interacting with a BEP20 flash token contract",
+    "author":  "Educational Use",
+    "main":  "src/main.js",
+    "scripts":  {
+                    "start":  "electron .",
+                    "pack":  "electron-builder --dir",
+                    "dist":  "electron-builder --win"
+                },
+    "build":  {
+                  "appId":  "com.education.flashusdt",
+                  "productName":  "Flash USDT Desktop",
+                  "files":  [
+                                "src/**/*",
+                                "config/**/*",
+                                "package.json"
+                            ],
+                  "win":  {
+                              "target":  "portable",
+                              "signAndEditExecutable":  false
+                          }
+              },
+    "dependencies":  {
+                         "ethers":  "^6.13.4",
+                         "dotenv":  "^16.4.5"
+                     },
+    "devDependencies":  {
+                            "electron":  "^31.7.7",
+                            "electron-builder":  "^24.13.3"
+                        }
+}
