@@ -89,13 +89,33 @@ function validateRuntimeConfig(cfg) {
   }
 }
 
-async function estimateGasAndFee(privateKey, to, amount, cfg) {
+function buildMintCallArgs(contract, to, parsedAmount, expirationMs) {
+  const fn = contract.interface.getFunction("mintFlash");
+  if (!fn) throw new Error("mintFlash function not found in ABI.");
+
+  if (fn.inputs.length === 3) {
+    if (!Number.isFinite(expirationMs) || expirationMs < 60000) {
+      throw new Error("Expiration must be at least 1 minute.");
+    }
+    const expiresAtUnix = BigInt(Math.floor((Date.now() + expirationMs) / 1000));
+    return [to, parsedAmount, expiresAtUnix];
+  }
+
+  if (fn.inputs.length === 2) {
+    return [to, parsedAmount];
+  }
+
+  throw new Error("Unsupported mintFlash signature. Expected 2 or 3 inputs.");
+}
+
+async function estimateGasAndFee(privateKey, to, amount, expirationMs, cfg) {
   const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
   const wallet = new ethers.Wallet(privateKey, provider);
   const contract = new ethers.Contract(cfg.contractAddress, cfg.contractAbi, wallet);
 
   const parsedAmount = ethers.parseUnits(String(amount), cfg.tokenDecimals);
-  const txReq = await contract.mintFlash.populateTransaction(to, parsedAmount);
+  const mintArgs = buildMintCallArgs(contract, to, parsedAmount, expirationMs);
+  const txReq = await contract.mintFlash.populateTransaction(...mintArgs);
   const gasEstimate = await provider.estimateGas({ ...txReq, from: wallet.address });
   const feeData = await provider.getFeeData();
 
@@ -110,13 +130,26 @@ async function estimateGasAndFee(privateKey, to, amount, cfg) {
   };
 }
 
+async function preflightMintFlash(privateKey, to, amount, expirationMs, cfg) {
+  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
+  const wallet = new ethers.Wallet(privateKey, provider);
+  const contract = new ethers.Contract(cfg.contractAddress, cfg.contractAbi, wallet);
+  const parsedAmount = ethers.parseUnits(String(amount), cfg.tokenDecimals);
+  const mintArgs = buildMintCallArgs(contract, to, parsedAmount, expirationMs);
+
+  // Simulate transaction execution without broadcasting.
+  await contract.mintFlash.staticCall(...mintArgs);
+  return { ok: true, from: wallet.address };
+}
+
 async function sendMintFlash(privateKey, to, amount, expirationMs, cfg) {
   const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
   const wallet = new ethers.Wallet(privateKey, provider);
   const contract = new ethers.Contract(cfg.contractAddress, cfg.contractAbi, wallet);
 
   const parsedAmount = ethers.parseUnits(String(amount), cfg.tokenDecimals);
-  const tx = await contract.mintFlash(to, parsedAmount);
+  const mintArgs = buildMintCallArgs(contract, to, parsedAmount, expirationMs);
+  const tx = await contract.mintFlash(...mintArgs);
 
   const createdAt = Date.now();
   const expiresAt = createdAt + expirationMs;
@@ -184,7 +217,34 @@ ipcMain.handle("tx:estimate", async (_event, payload) => {
       throw new Error("Private key must include 0x prefix.");
     }
     if (Number(payload.amount) <= 0) throw new Error("Amount must be greater than zero.");
-    return { ok: true, data: await estimateGasAndFee(payload.privateKey, payload.to, payload.amount, cfg) };
+    return {
+      ok: true,
+      data: await estimateGasAndFee(payload.privateKey, payload.to, payload.amount, payload.expirationMs, cfg)
+    };
+  } catch (err) {
+    return { ok: false, error: normalizeError(err) };
+  }
+});
+
+ipcMain.handle("tx:preflight", async (_event, payload) => {
+  const cfg = loadConfig();
+  try {
+    validateRuntimeConfig(cfg);
+    if (!ethers.isAddress(payload.to)) throw new Error("Invalid destination wallet address.");
+    if (!payload.privateKey || !payload.privateKey.startsWith("0x")) {
+      throw new Error("Private key must include 0x prefix.");
+    }
+    if (Number(payload.amount) <= 0) throw new Error("Amount must be greater than zero.");
+    return {
+      ok: true,
+      data: await preflightMintFlash(
+        payload.privateKey,
+        payload.to,
+        payload.amount,
+        payload.expirationMs,
+        cfg
+      )
+    };
   } catch (err) {
     return { ok: false, error: normalizeError(err) };
   }

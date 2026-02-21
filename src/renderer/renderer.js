@@ -20,6 +20,20 @@ function setStatus(message, type = "info") {
   if (type === "success") statusPanel.classList.add("success");
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function shortHash(hash) {
+  if (!hash || hash.length < 14) return hash || "";
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+}
+
 function expirationToMs(value, unit) {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return NaN;
@@ -44,21 +58,26 @@ function formatCountdown(expiresAt) {
 
 function renderHistory(items) {
   if (!items || items.length === 0) {
-    historyEl.innerHTML = "<p>No transactions yet.</p>";
+    historyEl.innerHTML = "<p class=\"history-to\">No transactions yet.</p>";
     return;
   }
 
   historyEl.innerHTML = items
     .map((item) => {
+      const safeAmount = escapeHtml(item.amount);
+      const safeSymbol = escapeHtml(item.symbol);
+      const safeTo = escapeHtml(item.to);
+      const safeHash = escapeHtml(item.hash);
       return `
       <div class="history-item">
-        <div>
-          <strong>${item.amount} ${item.symbol}</strong> to ${item.to}
+        <div class="history-item-head">
+          <div class="history-amount">${safeAmount} ${safeSymbol}</div>
           <span class="pill ${item.status}">${item.status}</span>
         </div>
-        <div class="meta">Hash: ${item.hash}</div>
-        <div class="meta">Created: ${new Date(item.createdAt).toLocaleString()}</div>
-        <div class="meta">Expires in: ${formatCountdown(item.expiresAt)}</div>
+        <div class="history-to">Recipient: ${safeTo}</div>
+        <div class="history-meta">Hash: ${shortHash(safeHash)} (${safeHash})</div>
+        <div class="history-to">Created: ${new Date(item.createdAt).toLocaleString()}</div>
+        <div class="history-to">Expires in: ${formatCountdown(item.expiresAt)}</div>
       </div>
     `;
     })
@@ -114,7 +133,14 @@ sendBtn.addEventListener("click", async () => {
     return;
   }
 
-  setStatus("Sending transaction...");
+  setStatus("Running preflight simulation...");
+  const preflight = await window.flashApi.preflight(payload);
+  if (!preflight.ok) {
+    setStatus(`Preflight failed: ${preflight.error}`, "error");
+    return;
+  }
+
+  setStatus("Preflight passed. Sending transaction...");
   const res = await window.flashApi.send(payload);
 
   if (!res.ok) {
@@ -128,7 +154,7 @@ sendBtn.addEventListener("click", async () => {
 
 async function init() {
   appConfig = await window.flashApi.getConfig();
-  networkInfoEl.textContent = `RPC: ${appConfig.rpcUrl} | Chain ID: ${appConfig.chainId} | Contract: ${appConfig.contractAddress}`;
+  networkInfoEl.textContent = `RPC ${appConfig.rpcUrl} | Chain ${appConfig.chainId} | Contract ${appConfig.contractAddress}`;
   await refreshHistory();
   setStatus("Ready");
   setInterval(refreshHistory, 30000);

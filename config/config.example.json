@@ -1,18 +1,30 @@
 {
-  "rpcUrl": "https://bsc-dataseed.binance.org/",
-  "chainId": 56,
-  "contractAddress": "0x66ed723584473c96f078a348ca135dafecb583906",
-  "tokenSymbol": "USDT",
-  "tokenDecimals": 18,
-  "contractAbi": [
-    {
-      "inputs": [
-        { "name": "to", "type": "address" },
-        { "name": "amount", "type": "uint256" }
-      ],
-      "name": "mintFlash",
-      "outputs": [],
-      "type": "function"
-    }
-  ]
+    "rpcUrl":  "https://bsc-dataseed.binance.org/",
+    "chainId":  56,
+    "contractAddress":  "0x66ed72358473C96F078A348ca135dafECb583906",
+    "tokenSymbol":  "USDT",
+    "tokenDecimals":  18,
+    "contractAbi":  [
+                        {
+                            "outputs":  [
+
+                                        ],
+                            "inputs":  [
+                                           {
+                                               "name":  "to",
+                                               "type":  "address"
+                                           },
+                                           {
+                                               "name":  "amount",
+                                               "type":  "uint256"
+                                           },
+                                           {
+                                               "name":  "expiresAt",
+                                               "type":  "uint64"
+                                           }
+                                       ],
+                            "name":  "mintFlash",
+                            "type":  "function"
+                        }
+                    ]
 }
