@@ -130,18 +130,6 @@ async function estimateGasAndFee(privateKey, to, amount, expirationMs, cfg) {
   };
 }
 
-async function preflightMintFlash(privateKey, to, amount, expirationMs, cfg) {
-  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
-  const wallet = new ethers.Wallet(privateKey, provider);
-  const contract = new ethers.Contract(cfg.contractAddress, cfg.contractAbi, wallet);
-  const parsedAmount = ethers.parseUnits(String(amount), cfg.tokenDecimals);
-  const mintArgs = buildMintCallArgs(contract, to, parsedAmount, expirationMs);
-
-  // Simulate transaction execution without broadcasting.
-  await contract.mintFlash.staticCall(...mintArgs);
-  return { ok: true, from: wallet.address };
-}
-
 async function sendMintFlash(privateKey, to, amount, expirationMs, cfg) {
   const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
   const wallet = new ethers.Wallet(privateKey, provider);
@@ -220,30 +208,6 @@ ipcMain.handle("tx:estimate", async (_event, payload) => {
     return {
       ok: true,
       data: await estimateGasAndFee(payload.privateKey, payload.to, payload.amount, payload.expirationMs, cfg)
-    };
-  } catch (err) {
-    return { ok: false, error: normalizeError(err) };
-  }
-});
-
-ipcMain.handle("tx:preflight", async (_event, payload) => {
-  const cfg = loadConfig();
-  try {
-    validateRuntimeConfig(cfg);
-    if (!ethers.isAddress(payload.to)) throw new Error("Invalid destination wallet address.");
-    if (!payload.privateKey || !payload.privateKey.startsWith("0x")) {
-      throw new Error("Private key must include 0x prefix.");
-    }
-    if (Number(payload.amount) <= 0) throw new Error("Amount must be greater than zero.");
-    return {
-      ok: true,
-      data: await preflightMintFlash(
-        payload.privateKey,
-        payload.to,
-        payload.amount,
-        payload.expirationMs,
-        cfg
-      )
     };
   } catch (err) {
     return { ok: false, error: normalizeError(err) };

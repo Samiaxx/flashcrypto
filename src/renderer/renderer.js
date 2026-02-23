@@ -133,14 +133,7 @@ sendBtn.addEventListener("click", async () => {
     return;
   }
 
-  setStatus("Running preflight simulation...");
-  const preflight = await window.flashApi.preflight(payload);
-  if (!preflight.ok) {
-    setStatus(`Preflight failed: ${preflight.error}`, "error");
-    return;
-  }
-
-  setStatus("Preflight passed. Sending transaction...");
+  setStatus("Sending transaction...");
   const res = await window.flashApi.send(payload);
 
   if (!res.ok) {
