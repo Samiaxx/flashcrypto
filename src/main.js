@@ -1,4 +1,20 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const electron = require("electron");
+if (typeof electron === "string") {
+  const { spawnSync } = require("child_process");
+  if (process.env.ELECTRON_RESPAWNED === "1") {
+    throw new Error("Electron failed to start in desktop mode.");
+  }
+
+  const env = { ...process.env, ELECTRON_RESPAWNED: "1" };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const result = spawnSync(electron, [process.argv[1], ...process.argv.slice(2)], {
+    stdio: "inherit",
+    env
+  });
+  process.exit(result.status ?? 1);
+}
+
+const { app, BrowserWindow, ipcMain } = electron;
 const path = require("path");
 const fs = require("fs");
 const dotenv = require("dotenv");
@@ -72,8 +88,32 @@ function normalizeError(err) {
   if (!err) return "Unknown error";
   if (typeof err === "string") return err;
   const msg = err.shortMessage || err.reason || err.message || "Unknown error";
+
+  const data =
+    err?.data ||
+    err?.error?.data ||
+    err?.info?.error?.data ||
+    err?.info?.data ||
+    "";
+
+  if (typeof data === "string" && data.startsWith("0x") && data.length >= 10) {
+    const selector = data.slice(0, 10).toLowerCase();
+    const ownableUnauthorizedSelector = ethers
+      .id("OwnableUnauthorizedAccount(address)")
+      .slice(0, 10)
+      .toLowerCase();
+
+    if (selector === ownableUnauthorizedSelector && data.length >= 138) {
+      const addr = `0x${data.slice(-40)}`;
+      return `Only contract owner can mint. Sender ${addr} is not authorized.`;
+    }
+  }
+
   if (msg.includes("cannot slice beyond data bounds")) {
     return "Contract call failed: check contract address and ABI (function may not exist on target contract).";
+  }
+  if (msg.includes("execution reverted (no data present")) {
+    return "Contract reverted without reason. Common causes: wrong ABI/signature, sender is not contract owner, or contract rules rejected this mint.";
   }
   return msg;
 }
@@ -86,6 +126,16 @@ function validateRuntimeConfig(cfg) {
   }
   if (!Array.isArray(cfg.contractAbi) || cfg.contractAbi.length === 0) {
     throw new Error("Invalid CONTRACT_ABI: ABI must be a non-empty array.");
+  }
+}
+
+async function validateContractTargetOnChain(cfg) {
+  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
+  const code = await provider.getCode(cfg.contractAddress);
+  if (!code || code === "0x") {
+    throw new Error(
+      `Configured CONTRACT_ADDRESS has no contract code on chain ${cfg.chainId}: ${cfg.contractAddress}`
+    );
   }
 }
 
@@ -130,6 +180,14 @@ async function estimateGasAndFee(privateKey, to, amount, expirationMs, cfg) {
   };
 }
 
+async function assertOwnerIfAvailable(contract, walletAddress) {
+  if (typeof contract.owner !== "function") return;
+  const ownerAddr = await contract.owner();
+  if (ethers.isAddress(ownerAddr) && ownerAddr.toLowerCase() !== walletAddress.toLowerCase()) {
+    throw new Error(`Only owner can mint. Contract owner is ${ownerAddr}, sender is ${walletAddress}.`);
+  }
+}
+
 async function sendMintFlash(privateKey, to, amount, expirationMs, cfg) {
   const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
   const wallet = new ethers.Wallet(privateKey, provider);
@@ -137,6 +195,11 @@ async function sendMintFlash(privateKey, to, amount, expirationMs, cfg) {
 
   const parsedAmount = ethers.parseUnits(String(amount), cfg.tokenDecimals);
   const mintArgs = buildMintCallArgs(contract, to, parsedAmount, expirationMs);
+  await assertOwnerIfAvailable(contract, wallet.address);
+
+  // Static preflight surfaces revert reasons before broadcast.
+  await contract.mintFlash.staticCall(...mintArgs);
+
   const tx = await contract.mintFlash(...mintArgs);
 
   const createdAt = Date.now();
@@ -156,7 +219,6 @@ async function sendMintFlash(privateKey, to, amount, expirationMs, cfg) {
   const current = readHistory();
   writeHistory([historyEntry, ...current].slice(0, 200));
 
-  // Do not block UI response while waiting for confirmation.
   tx.wait()
     .then((receipt) => {
       const updated = readHistory().map((item) => {
@@ -184,9 +246,33 @@ async function sendMintFlash(privateKey, to, amount, expirationMs, cfg) {
   return { hash: tx.hash, createdAt, expiresAt };
 }
 
+async function getTokenBalance(walletAddress, cfg) {
+  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
+  const erc20ReadAbi = ["function balanceOf(address) view returns (uint256)"];
+  const contract = new ethers.Contract(cfg.contractAddress, erc20ReadAbi, provider);
+  const rawBalance = await contract.balanceOf(walletAddress);
+  const formatted = ethers.formatUnits(rawBalance, cfg.tokenDecimals);
+  return {
+    wallet: walletAddress,
+    raw: rawBalance.toString(),
+    formatted
+  };
+}
+
+async function burnExpiredBalance(privateKey, account, cfg) {
+  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
+  const wallet = new ethers.Wallet(privateKey, provider);
+  const burnAbi = ["function burnExpired(address account) returns (uint256)"];
+  const contract = new ethers.Contract(cfg.contractAddress, burnAbi, wallet);
+
+  const tx = await contract.burnExpired(account);
+  return { hash: tx.hash };
+}
+
 ipcMain.handle("app:get-config", async () => {
   const cfg = loadConfig();
   validateRuntimeConfig(cfg);
+  await validateContractTargetOnChain(cfg);
   return {
     rpcUrl: cfg.rpcUrl,
     chainId: cfg.chainId,
@@ -200,6 +286,7 @@ ipcMain.handle("tx:estimate", async (_event, payload) => {
   const cfg = loadConfig();
   try {
     validateRuntimeConfig(cfg);
+    await validateContractTargetOnChain(cfg);
     if (!ethers.isAddress(payload.to)) throw new Error("Invalid destination wallet address.");
     if (!payload.privateKey || !payload.privateKey.startsWith("0x")) {
       throw new Error("Private key must include 0x prefix.");
@@ -218,6 +305,7 @@ ipcMain.handle("tx:send", async (_event, payload) => {
   const cfg = loadConfig();
   try {
     validateRuntimeConfig(cfg);
+    await validateContractTargetOnChain(cfg);
     if (!ethers.isAddress(payload.to)) throw new Error("Invalid destination wallet address.");
     if (!payload.privateKey || !payload.privateKey.startsWith("0x")) {
       throw new Error("Private key must include 0x prefix.");
@@ -241,6 +329,36 @@ ipcMain.handle("tx:send", async (_event, payload) => {
 });
 
 ipcMain.handle("tx:history", async () => readHistory());
+
+ipcMain.handle("tx:burn-expired", async (_event, payload) => {
+  const cfg = loadConfig();
+  try {
+    validateRuntimeConfig(cfg);
+    await validateContractTargetOnChain(cfg);
+    if (!payload.privateKey || !payload.privateKey.startsWith("0x")) {
+      throw new Error("Private key must include 0x prefix.");
+    }
+    if (!ethers.isAddress(payload.account)) {
+      throw new Error("Invalid wallet address for burnExpired.");
+    }
+    const data = await burnExpiredBalance(payload.privateKey, payload.account, cfg);
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: normalizeError(err) };
+  }
+});
+
+ipcMain.handle("token:balance", async (_event, payload) => {
+  const cfg = loadConfig();
+  try {
+    validateRuntimeConfig(cfg);
+    await validateContractTargetOnChain(cfg);
+    if (!ethers.isAddress(payload.wallet)) throw new Error("Invalid wallet address.");
+    return { ok: true, data: await getTokenBalance(payload.wallet, cfg) };
+  } catch (err) {
+    return { ok: false, error: normalizeError(err) };
+  }
+});
 
 app.whenReady().then(() => {
   createWindow();

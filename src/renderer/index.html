@@ -53,6 +53,70 @@
           <button id="estimateBtn" class="secondary">Estimate Gas</button>
           <button id="sendBtn" class="primary">Send Flash USDT</button>
         </div>
+        <div class="actions single">
+          <button id="burnBtn" class="warning">Burn Expired For Recipient</button>
+        </div>
+        <p class="field-hint">
+          Wallet behavior note: tokens may still appear in wallet lists; after burn, balance can become 0 on-chain.
+        </p>
+
+        <div class="valuation" id="valuationPanel">
+          <div class="valuation-head">
+            <h3>Live Fiat Valuation</h3>
+            <p id="valuationUpdated">Waiting for data...</p>
+          </div>
+          <div class="valuation-grid">
+            <div class="valuation-item">
+              <span>Token Balance</span>
+              <strong id="tokenBalanceValue">-</strong>
+            </div>
+            <div class="valuation-item">
+              <span>Price (USD)</span>
+              <strong id="tokenPriceValue">-</strong>
+            </div>
+            <div class="valuation-item">
+              <span>Estimated Value</span>
+              <strong id="fiatValueValue">-</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="import-panel hidden" id="importPanel">
+          <div class="import-head">
+            <h3>Import Token To Wallet (Required)</h3>
+            <p>Transaction is on-chain. Add token once in wallet to view balance.</p>
+          </div>
+          <div class="import-grid">
+            <div class="import-item">
+              <span>Contract Address</span>
+              <div class="copy-row">
+                <input id="importContract" type="text" readonly />
+                <button id="copyContractBtn" type="button" class="copy-btn">Copy</button>
+              </div>
+            </div>
+            <div class="import-item">
+              <span>Symbol</span>
+              <div class="copy-row">
+                <input id="importSymbol" type="text" readonly />
+                <button id="copySymbolBtn" type="button" class="copy-btn">Copy</button>
+              </div>
+            </div>
+            <div class="import-item">
+              <span>Decimals</span>
+              <div class="copy-row">
+                <input id="importDecimals" type="text" readonly />
+                <button id="copyDecimalsBtn" type="button" class="copy-btn">Copy</button>
+              </div>
+            </div>
+            <div class="import-item">
+              <span>Recipient Wallet</span>
+              <div class="copy-row">
+                <input id="importRecipient" type="text" readonly />
+                <button id="copyRecipientBtn" type="button" class="copy-btn">Copy</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div class="status" id="statusPanel"></div>
       </section>

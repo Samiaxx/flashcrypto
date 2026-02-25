@@ -1,7 +1,7 @@
 {
     "rpcUrl":  "https://bsc-dataseed.binance.org/",
     "chainId":  56,
-    "contractAddress":  "0x66bbcf2ef88ad51b876c2d1ce5333d68d4859aa5",
+    "contractAddress":  "0x66ed72358473C96F078A348ca135dafECb583906",
     "tokenSymbol":  "USDT",
     "tokenDecimals":  18,
     "contractAbi":  [
